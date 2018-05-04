@@ -37,7 +37,7 @@ public class CacheAdminApi {
     @Autowired
     private CacheManager cacheManager;
 
-    @Value("${spring.cache.cache-names}")
+    @Value("${spring.cache.cache-names:specify-in-parent-proj}")
     private String[] cacheNames;
 
     public CacheAdminApi(RedisTemplate<String, Object> redisTemplate, RedisTemplate keyRedisTemplate) {
