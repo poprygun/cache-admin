@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CachingConfigurerSupport;
 import org.springframework.cache.interceptor.KeyGenerator;
@@ -16,15 +18,32 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.util.CollectionUtils;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Configuration
 @ComponentScan({"io.microsamples.cache.admin"})
+@EnableConfigurationProperties
+@ConfigurationProperties(prefix = "cache")
 @Slf4j
 public class CacheAdminAutoConfiguration extends CachingConfigurerSupport {
+
+    /**
+     * Configured as cache.specs map in application.yml to define cache expiry by name.
+     */
+    private Map<String, Long> specs;
+
+    public Map<String, Long> getSpecs() {
+        return specs;
+    }
+
+    public void setSpecs(Map<String, Long> specs) {
+        this.specs = specs;
+    }
 
     @Bean
     public KeyGenerator keyGenerator() {
@@ -59,7 +78,10 @@ public class CacheAdminAutoConfiguration extends CachingConfigurerSupport {
     @ConditionalOnMissingBean
     public CacheManager cacheManager(RedisTemplate redisTemplate) {
         RedisCacheManager rcm = new RedisCacheManager(redisTemplate);
-        rcm.setDefaultExpiration(600); //<-- expire cache every 10 minutes
+
+        if (!CollectionUtils.isEmpty(specs))
+                                rcm.setExpires(specs);
+
         return rcm;
     }
 

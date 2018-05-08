@@ -1,5 +1,6 @@
 package io.microsamples.cache.admin.api;
 
+import io.microsamples.cache.admin.service.CacheAdminService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -24,25 +25,12 @@ import java.util.Set;
 @RequestMapping("/cache-admin")
 @Slf4j
 public class CacheAdminApi {
-    private final static String CACHE_SUFFIX = "~keys";
 
-    @Autowired
-    @Qualifier("redisTemplate")
-    private RedisTemplate<String, Object> redisTemplate;
+    private CacheAdminService cacheAdminService;
 
-    @Autowired
-    @Qualifier("keyRedisTemplate")
-    private RedisTemplate keyRedisTemplate;
 
-    @Autowired
-    private CacheManager cacheManager;
-
-    @Value("${spring.cache.cache-names:specify-in-parent-proj}")
-    private String[] cacheNames;
-
-    public CacheAdminApi(RedisTemplate<String, Object> redisTemplate, RedisTemplate keyRedisTemplate) {
-        this.keyRedisTemplate = keyRedisTemplate;
-        this.redisTemplate = redisTemplate;
+    public CacheAdminApi(CacheAdminService cacheAdminService) {
+        this.cacheAdminService = cacheAdminService;
     }
 
     @GetMapping
@@ -57,20 +45,9 @@ public class CacheAdminApi {
         if (StringUtils.isEmpty(cacheName))
             return new ResponseEntity("Cache name needs to be provided.", HttpStatus.BAD_REQUEST);
 
-        Set<String> range = namedCacheValues(cacheName);
-
-        Map<String, String> cachedData = new HashMap<>();
-
-        if (!CollectionUtils.isEmpty(range))
-            range.stream().forEach(v -> cachedData.put(v, redisTemplate.opsForValue().get(v).toString()));
+        Map<String, String> cachedData = cacheAdminService.dumpCacheFor(cacheName);
 
         return new ResponseEntity<>(cachedData, HttpStatus.OK);
-    }
-
-    private Set<String> namedCacheValues(@RequestParam String cacheName) {
-        String keyName = cacheName.concat(CACHE_SUFFIX);
-        long cachedSize = keyRedisTemplate.opsForZSet().size(keyName);
-        return keyRedisTemplate.opsForZSet().range(keyName, 0, cachedSize);
     }
 
 
@@ -80,23 +57,14 @@ public class CacheAdminApi {
         if (StringUtils.isEmpty(cacheName))
             return new ResponseEntity("Cache name needs to be provided.", HttpStatus.BAD_REQUEST);
 
-        Cache cache = cacheManager.getCache(cacheName);
-
-        Set<String> range = namedCacheValues(cacheName);
-
-        if (!CollectionUtils.isEmpty(range))
-            range.stream().forEach(v -> cache.evict(v));
+        Set<String> range = cacheAdminService.evictAllObjectsFrom(cacheName);
 
         return new ResponseEntity(range.size(), HttpStatus.OK);
     }
 
     @GetMapping("/purgeall")
     public ResponseEntity<Long> purgeAll() {
-        for (String cacheName : cacheNames) {
-            Cache cache = cacheManager.getCache(cacheName);
-            cache.clear();
-            log.info("...Cleared {}", cacheName);
-        }
+        cacheAdminService.purgeAll();
         return new ResponseEntity(HttpStatus.OK);
     }
 
